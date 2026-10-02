@@ -12,7 +12,7 @@
 
 | 情境 | 生效規則組 |
 |---|---|
-| `web_surfaces` 非空 | R1–R6（頁面層）＋ R7（爬蟲指令）＋ R10（實體一致性）＋ R11（初始 HTML）＋ R12（索引提交） |
+| `web_surfaces` 非空 | R1–R6（頁面層）＋ R7（爬蟲指令）＋ R10（實體一致性）＋ R11（初始 HTML）＋ R12（索引提交）＋ R13（AI 使用偏好宣告） |
 | `code_type` ∈ {library, cli} | R8（套件登錄頁）＋ R9（GitHub / README）＋ R10 |
 | 兩者皆成立（例：Go library 內含 `wiki-worker/public` 文件站） | 全部；且兩邊的專案描述、關鍵字必須一致（R10） |
 | `web_surfaces` 為空且 `code_type` ∈ {library, cli} | **明確告知使用者本專案無 web SEO surface**，僅執行 R8–R10。禁止虛構頁面來套用 R1–R7 |
@@ -119,7 +119,9 @@
 - **不得**以「提升 AI 引用」為理由加 schema——官方已否定該因果（A2）。理由寫「rich results 資格」或「實體理解」
 - 既有標註正確 → 不動
 
-**日期（A10）**：`Article` / `BlogPosting` / `TechArticle` 須帶 `datePublished`，內容曾更新者帶 `dateModified`（`jsonld_date_modified == false` 即觸發），值取自 git 修改時間或建置時間，並在頁面上可見顯示同一日期。有建置流程者由建置階段寫入，不手動維護。**禁止**內容未變動時更新日期。
+**Organization 判準**：只為**實際存在**的組織產生 `Organization` 節點——公司登記名稱、有官網或 GitHub org 可對應者。地區、職能、口號等定位文字（例：「Taiwan · Infrastructure Engineering」）不是組織，放可見署名或 tagline，不得成為 `Organization` 並把作者掛為 `founder`。多語站各語言頁用該語言的正式名稱（中文頁「帕登國際有限公司」、英文頁「Pardn Co., Ltd」），另一語言放 `alternateName`，`@id` 共用。作者網站已宣告 Organization 時沿用其 `@id`。（歷史事故：go-llm-router 2026-10-02 文件站把定位文字宣告為組織，作者網站上沒有對應節點。）
+
+**日期（A10）**：`Article` / `BlogPosting` / `TechArticle` 須帶 `datePublished`，內容曾更新者帶 `dateModified`（`jsonld_date_modified == false` 即觸發），值取自 git 修改時間或**內容雜湊有變動時**的建置日期，並在頁面上可見顯示同一日期。有建置流程者由建置階段寫入：保存每頁內容雜湊與 `published`／`modified`，雜湊改變才更新 `modified`；sitemap `lastmod` 取同一值。**不得**直接用檔案 mtime 或每次建置的日期——重新產生檔案就會變動，等同內容未變卻更新日期。**禁止**內容未變動時更新日期。
 
 ---
 
@@ -149,7 +151,16 @@
 
 **判準（唯一觸發條件）**：本專案是**供 AI agent 取用的開發者文件**（SDK / CLI / library 的 docs surface）。
 
-**動作**：於文件站根目錄產生 llms.txt，列出主要文件頁的標題、URL 與一行說明。
+**動作**：於文件站根目錄產生 llms.txt，列出主要文件頁的標題、URL 與一行說明，並依 llms.txt 規格**最新版**（A3、A12）實作其探索機制。研究查到規格新版時，新增的機制一律列入規劃實作，不列為「選用、由使用者決定」。目前（v2）包含：
+
+| 項目 | 內容 |
+|---|---|
+| 每頁 Markdown 版 | `/{slug}.md`（目錄型 URL 用 `index.md`）；llms.txt 的連結指向 Markdown 版 |
+| 探索連結 | 每頁 `<head>` 加 `<link rel="alternate" type="text/markdown" href="…md">` 與 `<link rel="describedby" href="/llms.txt">` |
+| 可見連結 | 頁面可見區（如署名列）放 `llms.txt` 與本頁 Markdown 連結——fetch 工具把 HTML 轉成 Markdown 後連結仍在，不跟隨 `<head>` link 的 agent 也找得到 |
+| 符號索引 | 函式庫／SDK 文件在 llms.txt 加 `## Symbols`：公開符號 → 記載它的頁面，讓以符號名查文件一次命中 |
+| 全文檔 | `llms-full.txt` 依導覽順序串接全部頁面、每段標示來源 URL；多語站每個語言各一份 |
+| 編碼 | `.md`、`.txt` 回應的 `Content-Type` 必須帶 `charset=utf-8`（靜態託管常預設不帶，瀏覽器以 Latin-1 解碼，CJK 全成亂碼）；部署後以 `curl -sI` 確認 |
 
 **產生方式（依專案有無建置流程二選一，必須向使用者說明取捨）**：
 
@@ -158,7 +169,7 @@
 | 有建置流程（頁面清單由某個 NAV / manifest / frontmatter 驅動） | 在建置階段由該來源產生 | 需改建置腳本；文件增刪自動同步 |
 | 無建置流程，或使用者明確表示不動程式 | 直接寫靜態檔 | 不碰程式；**文件增刪時會漂移**，須在報告標明此風險 |
 
-**產出後必須驗證（強制）**：把 llms.txt 內的每個 URL 對照實際頁面清單比對，列出「llms.txt 有但頁面無」與「頁面有但 llms.txt 無」兩份差集。llms.txt 是給 agent 讀的入口索引，指向 404 比沒有這個檔更糟——agent 會把它當成權威清單。
+**產出後必須驗證（強制）**：把 llms.txt 內的每個 URL 對照實際頁面（Markdown 版）清單比對，列出「llms.txt 有但頁面無」與「頁面有但 llms.txt 無」兩份差集。llms.txt 是給 agent 讀的入口索引，指向 404 比沒有這個檔更糟——agent 會把它當成權威清單。
 
 **邊界**：
 - 行銷官網、一般內容站 → **不產生**。Google 明文忽略（A3），產生它只是增加維護負擔
@@ -177,7 +188,7 @@
 | npm | `description`、`keywords`、`homepage`、`repository` | `description` 為空或未含主要關鍵字；`keywords` 為空 |
 | PyPI | `description`、`keywords`、`classifiers`、`project_urls` | 同上 |
 | Packagist | `description`、`keywords`、`homepage` | 同上 |
-| pkg.go.dev | 套件層 doc comment（`// Package xxx ...`）、README | package 註解缺失或未說明用途 |
+| pkg.go.dev | 套件層 doc comment（`// Package xxx ...`）、README | package 註解缺失或未說明用途；同名套件存在時，註解首句須寫出能區分的用途與作者／組織脈絡 |
 
 **動作**：description 一句話寫清楚「這是什麼 + 解決什麼」；keywords 取 3–8 個使用者實際會搜的詞。
 
@@ -207,6 +218,8 @@
 檢查位置：`package.json` name、`go.mod` module、README h1、網站 `<title>` 品牌段、`og:site_name`、JSON-LD 的 `name`、GitHub repo 名。
 
 **動作**：統一為單一正式寫法，其餘位置對齊。
+
+**Person／Organization 節點的 `sameAs`**：與作者網站的同一 `@id` 節點比對，取聯集讓兩站一致；`sameAs` 不放節點自己的 `url`；個人帳號放 Person、組織帳號（GitHub org）放 Organization，不混放。站外網站（作者個人網站、LinkedIn）的對應修改列入「需人工後續」。
 
 **為何**：實體一致是 Tier 2 研究中少數反覆被證實有效的做法（A8）；名稱漂移會讓引擎無法把散落的提及歸戶到同一實體。
 
@@ -244,8 +257,8 @@
 
 **動作**：
 - 未驗證 → 列入「需人工後續」：於 GSC 與 BWT 驗證並提交 sitemap；BWT 可直接匯入 GSC 設定
-- 有建置／部署流程且未接 IndexNow → 規劃在部署後送出變更 URL 至 IndexNow（需使用者提供或同意產生 key，key 檔置於站台根目錄）
-- 量測指向一手報告：GSC 的 Generative AI performance report、BWT 的 AI Performance（Copilot / Bing AI 摘要，不含 ChatGPT）
+- 有建置／部署流程且未接 IndexNow → 規劃在部署後送出變更 URL 至 IndexNow（需使用者提供或同意產生 key，key 檔置於站台根目錄）。實作要求：key 檔在部署**前**產生並隨站台上線；每次只送 `lastmod` 與上次送出紀錄不同的 URL，不重送未變更頁面；回應 200／202 才記錄為已送出，其他狀態碼視為失敗並輸出回應內容（讀取上限 8 KiB）
+- 量測指向一手報告：GSC 的 Generative AI performance report、BWT 的 AI Performance（Copilot、Bing AI 摘要與 select partner integrations；官方未點名 ChatGPT）
 
 **為何**：ChatGPT 與 Copilot 的檢索層是 Bing 索引（A9），只做 Google 等於放棄這兩個引擎。
 
@@ -253,6 +266,24 @@
 - 驗證碼由使用者從各自後台取得，**不得**填造 `content` 值
 - 無部署流程者不為 IndexNow 新建 CI——列為建議，交由使用者決定
 - 不引用第三方工具的「AI 可見度分數」作為成效依據（A1）
+
+## R13 — AI 使用偏好宣告
+
+**判準**：`web_surfaces` 非空，且 knowledge_anchors A12 中「可實作」欄為「是」或「需使用者決定政策」的機制尚未宣告；或已宣告的語法與 A12 最新狀態不符。
+
+**動作**：
+- 第一次執行時詢問使用者政策：是否允許 AI 訓練（`train-ai`／`ai-train`）、AI 即時輸入（`ai-input`／`ai-use`）、搜尋（`search`），寫入 config（`ai_usage`）；之後依 config 套用，不再詢問
+- 依 A12 當下可實作的機制同時輸出，並存不衝突：
+  - IETF aipref：robots.txt `Content-Usage: train-ai=y|n, search=y|n`；HTTP header `Content-Usage`（靜態站用 `_headers` 的 `/*` 規則）
+  - Cloudflare Content Signals：robots.txt `Content-signal: search=yes|no, ai-input=yes|no, ai-train=yes|no`
+  - TDMRep：僅在使用者要表達 EU DSM 第 4 條保留時輸出 `/.well-known/tdmrep.json`
+- 有建置流程者由建置產生，不手寫靜態檔
+
+**邊界**：
+- 政策值是內容授權決策，**不得**由 agent 代填預設值
+- aipref 仍為 draft（A12），語法以 A-5 最新抓取為準；狀態變動時依 research_protocol A-5 判讀規則修正
+- 不得宣稱這些宣告會提升排名或 AI 引用；它們只表達使用偏好，主要廠商官方頁截至 A12 驗證日皆未宣告支援
+- 只追蹤不實作 A12 中「可實作＝否」或「網站端無需動作」的項目（Web Bot Auth、MCP Server Card、WebMCP、個人 draft）
 
 ---
 

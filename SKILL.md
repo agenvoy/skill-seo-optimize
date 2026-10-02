@@ -52,13 +52,25 @@ description: 分析專案並實際套用 SEO / AEO / GEO 優化。當使用者�
 | 條件 | 行為 |
 |---|---|
 | 開始執行 | 先 `date +%Y-%m-%d` 取得今日，推算近半年時間窗 |
-| 執行查詢 | Phase A-1 十一組查詢並行送出；Phase A-2 五個一手來源以 WebFetch 實抓 |
+| 執行查詢 | Phase A-1 十一組查詢並行送出；Phase A-2 五個一手來源以 WebFetch 實抓；Phase A-5 標準與提案追蹤（IANA well-known 註冊表、IETF aipref／webbotauth、llmstxt.org、Cloudflare Content Signals、MCP Server Card）實抓並與 anchors A12 逐列比對 |
 | 查得結果與 [`scripts/knowledge_anchors.md`](scripts/knowledge_anchors.md) 不符 | 以本次實抓的 Tier 1 來源為準，**就地更新 knowledge_anchors.md** 並改寫其「上次驗證日期」 |
 | 網路不可用 | 明確告知使用者「本次未取得最新研究，以下依據為 {anchors 驗證日期} 的快照」，**不得靜默沿用** |
 
 **為何不快取：** SEO / AEO 有效做法半年內會反轉。2025 年主流指南建議加 llms.txt 提升 AI 可見度，2026-05 Google 官方文件表明其被忽略；同份文件亦推翻「特定 schema 觸發 AI 引用」。憑記憶作答會產出反效果的動作。
 
+| A-5 查到狀態變動 | 依 research_protocol A-5 判讀規則更新 A12、optimization_rules；進入可實作門檻且適用本專案者列入規劃 |
+
 產出：`.doc/seo-optimize/research-{yyyy-MM-dd}.md`（格式見 research_protocol.md）。
+
+**新規範回報（強制）：** 本次研究（含 A-5 標準追蹤）查到的內容只要**新於或高於 skill 現有資訊**——knowledge_anchors、optimization_rules、範本行為任一處沒有記載、記載過時或被推翻——回應的**最後一段**必須是「本次發現的新規範」表：
+
+| 規範 | 來源 URL（日期） | skill 原本 | 最新內容 | 本次處理 |
+|---|---|---|---|---|
+
+「本次處理」寫實際改了哪個檔案（anchors／rules／範本與版號），或未處理的原因（例：仍為個人 draft、需使用者決定政策）。沒有新規範時寫一行「本次研究未發現高於 skill 現有資訊的新規範」。
+
+**為何：** 規範更新散在 digest 與 anchors 的修改裡，使用者不會逐檔比對；不在回應最後明列，就不知道 skill 這次被哪些新事實改寫、哪些還沒跟上。
+
 
 ---
 
@@ -107,6 +119,7 @@ python3 ~/.claude/skills/seo-optimize/scripts/analyze_seo.py {PROJECT_PATH}
 |---|---|---|---|
 | 1 | 關鍵字 | 想推廣的主要關鍵字（可複選 / 自填） | **由 Step 2 的原始碼理解產出 3–4 個候選**，使用者可改用 Other 自填 |
 | 2 | 在地性 | 有無實體營業地點 | 有（觸發 LocalBusiness schema 與 GBP 建議）／純線上 |
+| 3 | AI 使用 | 是否允許 AI 訓練、AI 即時輸入、搜尋使用本站內容（R13；config 無 `ai_usage` 時才問） | 各類別允許／不允許／不表態 |
 
 **關鍵字候選必須來自實際讀過的程式碼**，不得從專案名硬湊。候選要是使用者會輸入搜尋框的詞，不是內部術語。
 
@@ -173,11 +186,18 @@ python3 ~/.claude/skills/seo-optimize/scripts/analyze_seo.py {PROJECT_PATH}
 - [ ] 無「禁止動作」表中的任何一項（關鍵字堆砌、假 schema、無效 llms.txt 等）
 - [ ] `web_surfaces` 為空時未產生任何頁面層變更
 - [ ] canonical / sitemap 中的網域為實際確認過的網域
+- [ ] Organization 節點只代表實際存在的組織（定位文字不得成為 Organization），多語頁各用自身語言的正式名稱，`@id` 與作者網站一致
+- [ ] Person／Organization `sameAs` 不含節點自身 `url`，個人與組織帳號分開，與作者網站差異已列入人工後續
+- [ ] `dateModified` 由內容雜湊判定，連續建置兩次日期不變；頁面可見日期與 JSON-LD、sitemap `lastmod` 一致
+- [ ] 接了 IndexNow 者：key 檔線上回 200，送出回 200／202，重跑只送有變動的 URL
 - [ ] `csr_shell == true` 的頁面已列為 R11 Critical，未被其他內容層項目蓋過
 - [ ] 目標引擎含 ChatGPT 時，R12 的 Bing Webmaster Tools 驗證狀態已檢查
 - [ ] 驗證碼、IndexNow key 未被填造
 - [ ] 未執行 git 寫入指令、未執行 `gh repo edit`
 - [ ] 已提醒使用者 `.doc/` 是否需加入 `.gitignore`
+- [ ] A-5 標準追蹤已實抓，A12 已更新驗證日期
+- [ ] 有 llms.txt 者：每頁有 Markdown 版與兩個探索連結、可見的 llms.txt／Markdown 連結；`.md`／`.txt` 回應帶 `charset=utf-8`
+- [ ] 回應最後一段為「本次發現的新規範」表（或一行聲明無新規範）
 
 ---
 
