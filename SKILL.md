@@ -187,7 +187,7 @@ python3 ~/.claude/skills/seo-optimize/scripts/analyze_seo.py {PROJECT_PATH}
 - [ ] `web_surfaces` 為空時未產生任何頁面層變更
 - [ ] canonical / sitemap 中的網域為實際確認過的網域
 - [ ] Organization 節點只代表實際存在的組織（定位文字不得成為 Organization），多語頁各用自身語言的正式名稱，`@id` 與作者網站一致
-- [ ] Person／Organization `sameAs` 不含節點自身 `url`，個人與組織帳號分開，與作者網站差異已列入人工後續
+- [ ] Person `sameAs` 包含 `~/.skill-readme-generate.json` 的 `same_as` 每一項，個人與組織帳號分開，與作者網站差異已列入人工後續
 - [ ] `dateModified` 由內容雜湊判定，連續建置兩次日期不變；頁面可見日期與 JSON-LD、sitemap `lastmod` 一致
 - [ ] 接了 IndexNow 者：key 檔線上回 200，送出回 200／202，重跑只送有變動的 URL
 - [ ] `csr_shell == true` 的頁面已列為 R11 Critical，未被其他內容層項目蓋過
@@ -207,5 +207,5 @@ python3 ~/.claude/skills/seo-optimize/scripts/analyze_seo.py {PROJECT_PATH}
 |---|---|---|
 | Step 1 / 3.5 | [`scripts/research_protocol.md`](scripts/research_protocol.md) | 強制研究協定：查詢集、來源分級、衝突裁決、digest 格式 |
 | Step 1 / 4 | [`scripts/knowledge_anchors.md`](scripts/knowledge_anchors.md) | 已驗證的一手立場快照，用於偵測變動與識破業界迷思；每次執行後更新 |
-| Step 4 / 5 | [`scripts/optimization_rules.md`](scripts/optimization_rules.md) | 規則 R1–R12、禁止動作、嚴重度定義 |
+| Step 4 / 5 | [`scripts/optimization_rules.md`](scripts/optimization_rules.md) | 規則 R1–R14、禁止動作、嚴重度定義 |
 | Step 4 / 6 | [`scripts/output_format.md`](scripts/output_format.md) | 規劃與執行結果的報告範本 |
