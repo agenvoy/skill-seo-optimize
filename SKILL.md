@@ -151,6 +151,8 @@ python3 ~/.claude/skills/seo-optimize/scripts/analyze_seo.py {PROJECT_PATH}
 
 ## Step 4：規劃
 
+讀 [`CHANGELOG.md`](CHANGELOG.md) 定位差異：「破壞性變更」全部項目逐項比對專案中先前由本 skill 套用的產物，命中項直接列為規劃項目並於 Step 5 修改；回應中列出命中項與改動。
+
 依 [`scripts/optimization_rules.md`](scripts/optimization_rules.md) 逐條比對分析結果，產出 `.doc/seo-optimize/{yyyy-MM-dd_HH-mm}-plan.md`（格式見 [`scripts/output_format.md`](scripts/output_format.md)）。
 
 **產出後必須向使用者呈現摘要並取得明確確認才進入 Step 5。**規劃會修改專案檔案，屬不易還原的動作。
@@ -198,6 +200,18 @@ python3 ~/.claude/skills/seo-optimize/scripts/analyze_seo.py {PROJECT_PATH}
 - [ ] A-5 標準追蹤已實抓，A12 已更新驗證日期
 - [ ] 有 llms.txt 者：每頁有 Markdown 版與兩個探索連結、可見的 llms.txt／Markdown 連結；`.md`／`.txt` 回應帶 `charset=utf-8`
 - [ ] 回應最後一段為「本次發現的新規範」表（或一行聲明無新規範）
+- [ ] `CHANGELOG.md`「破壞性變更」已逐項比對既有產物，命中項已修改並列於回應；本次改了 `SKILL.md`／`scripts/` 者已更新 CHANGELOG
+
+---
+
+## CHANGELOG 維護
+
+修改本 skill 的 `SKILL.md`／`scripts/`（含 Step 1 研究就地更新 anchors、rules）時，同一次改動內：
+
+1. 更新 `CHANGELOG.md` 的「最新改動」日期
+2. 本次含移除行為或需既有產物端處理的變更 → 寫進「破壞性變更」（一項一行、新者在上，寫清楚「既有產物中找什麼 → 改成什麼」）；新增與修正不記錄。CHANGELOG 不寫版號
+
+**為何：** 讀完整規範（本檔＋`scripts/`）即得最新規範；CHANGELOG 只負責快速定位既有產物與最新規範的差異。只記破壞性變更，檔案不隨改動無限增長，落後多次的專案也能一次看完必須處理的項目；新增與修正在重跑時讀全規範自然取得。
 
 ---
 
@@ -209,3 +223,4 @@ python3 ~/.claude/skills/seo-optimize/scripts/analyze_seo.py {PROJECT_PATH}
 | Step 1 / 4 | [`scripts/knowledge_anchors.md`](scripts/knowledge_anchors.md) | 已驗證的一手立場快照，用於偵測變動與識破業界迷思；每次執行後更新 |
 | Step 4 / 5 | [`scripts/optimization_rules.md`](scripts/optimization_rules.md) | 規則 R1–R14、禁止動作、嚴重度定義 |
 | Step 4 / 6 | [`scripts/output_format.md`](scripts/output_format.md) | 規劃與執行結果的報告範本 |
+| Step 4 | [`CHANGELOG.md`](CHANGELOG.md) | 破壞性變更清單，快速定位既有產物與最新規範的差異 |
