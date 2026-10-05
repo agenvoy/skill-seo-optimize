@@ -27,15 +27,33 @@ description: 分析專案並實際套用 SEO / AEO / GEO 優化。當使用者�
 /seo-optimize ./my-site --reset    # 指定專案並重設目標設定
 ```
 
+### 由其他 skill 呼叫
+
+`/readme-generate` 與 `/wiki-generate` 完成後都會以專案根呼叫本 skill。檢查範圍由 Step 2 偵測決定，不由呼叫來源決定，所以兩個入口都會檢查到同樣的面向：
+
+| 偵測結果 | 必檢規則 |
+|---|---|
+| `git remote get-url origin` 為 `github.com` | R9：repo description、topics、homepage 與 README 簡短描述，不一致時以 `AskUserQuestion` 附完整 `gh repo edit` 指令詢問 |
+| 存在 `wiki-worker/public`（或其他 `web_surfaces`） | R1–R7、R10–R14 頁面層與爬蟲指令 |
+| `code_type` ∈ {library, cli} | R8 套件登錄頁、R10 |
+
+| 呼叫來源 | 主要目的 | 一併檢查 |
+|---|---|---|
+| `/readme-generate` | GitHub repo 描述與 description／topics（R9） | 有 `wiki-worker/` 時檢查文件站 |
+| `/wiki-generate` | `wiki-worker/` 文件站 | 是 GitHub repo 時檢查 description／topics（R9） |
+
+**為何：** repo 頁與文件站是同一組定位的兩個搜尋面，只檢查呼叫來源負責的那一面，另一面的描述會漂移（go-rest-client 2026-10-06：`/readme-generate` 跑完但 repo description／topics 未檢查）。
+
 ---
 
 ## Workflow
 
 ```
 1. 研究   →  強制重跑 research_protocol.md Phase A，產出 research digest
-2. 分析   →  analyze_seo.py 盤點 surface + 實讀原始碼理解專案在做什麼
-3. 詢問   →  AskUserQuestion 取得關鍵字 / 在地性；地區與引擎用固定預設；寫入 config.json
-3.5 補研究 →  research_protocol.md Phase B，針對關鍵字補查
+2. 分析   →  analyze_seo.py 盤點 surface + 實讀原始碼理解專案在做什麼，產出 seed 詞
+2.5 競品   →  research_protocol.md Phase B：搜尋第一頁、GitHub 高星同類、Hacker News 熱門文章，收集描述／關鍵字／topics
+3. 設計   →  依「原始碼能力 × 競品用詞」設計關鍵字候選，AskUserQuestion 確認；地區與引擎用固定預設；寫入 config.json
+3.5 補研究 →  research_protocol.md Phase C，依在地性與專案類型補查
 4. 規劃   →  產出 {ts}-plan.md，向使用者呈現並等待確認
 5. 套用   →  確認後依 optimization_rules.md 修改檔案
 6. 驗證   →  產出 {ts}-applied.md，列出已套用 / 未套用 / 需人工後續
@@ -86,23 +104,49 @@ python3 ~/.claude/skills/seo-optimize/scripts/analyze_seo.py {PROJECT_PATH}
 
 | 判斷項 | 用途 |
 |---|---|
-| 這個專案解決什麼問題 | Step 3 的關鍵字候選來源 |
+| 這個專案解決什麼問題、屬於哪一類工具 | Step 2.5 的 seed 詞（每語言 2–4 個，用使用者描述問題或找工具的說法，不用專案名） |
+| 專案實際具備哪些能力 | Step 3 篩選候選：競品常用但本專案沒有的能力不得成為關鍵字 |
 | 目標使用者是誰（開發者／終端使用者／企業） | 決定 R6 的 schema 類型與 R7.3 的 llms.txt 判準 |
 | 有無實際部署網域 | 決定 canonical / sitemap 能否產生 |
 | README 是否由 `/readme-generate` 管理 | 決定 R9 是直接改寫還是只回報建議 |
+| `git remote get-url origin` 是否為 `github.com` | 是 → R9 必檢，不論 `code_type`；以 `gh repo view {owner}/{repo} --json description,repositoryTopics,homepageUrl` 取現況 |
 
 **禁止**在 `web_surfaces` 為空時虛構頁面優化——該類專案的 surface 是套件登錄頁與 GitHub（規則 R8–R10）。
 
 ---
 
-## Step 3：詢問推廣目標
+## Step 2.5：競品研究
+
+以 Step 2 的 seed 詞跑 [`scripts/research_protocol.md`](scripts/research_protocol.md) 的 Phase B，結果寫入同一份 research digest 的「競品研究」段。
+
+| 條件 | 行為 |
+|---|---|
+| config 無 `keyword_research`、帶 `--reset`，或 config 缺失 | 執行 Phase B，進入 Step 3 重新設計關鍵字 |
+| config 有 `keyword_research` 且未帶 `--reset` | 略過 Phase B，Step 3 沿用 config 關鍵字 |
+
+**為何：** 只從原始碼推關鍵字，得到的是作者自己的說法；使用者實際搜尋、高星同類 repo 與社群熱門文章用的詞才是搜尋面上會被比對的詞。先看第一頁再定詞，才能選到有人搜、且本專案答得了的詞。
+
+---
+
+## Step 3：設計關鍵字
 
 先檢查 `{PROJECT_PATH}/.doc/seo-optimize/config.json`：
 
 | 狀態 | 行為 |
 |---|---|
-| 存在且欄位完整，未帶 `--reset` | 載入並**向使用者複述一行**目前設定，繼續 Step 3.5 |
-| 缺失、欄位不完整，或帶 `--reset` | 以 `AskUserQuestion` 詢問 |
+| 存在、欄位完整、有 `keyword_research`，未帶 `--reset` | 載入並**向使用者複述一行**目前設定，繼續 Step 3.5 |
+| 缺失、欄位不完整、無 `keyword_research`，或帶 `--reset` | 依下方「候選設計」產出候選，以 `AskUserQuestion` 詢問；既有欄位（`domain`、`ai_usage` 等）保留不重問 |
+
+### 候選設計
+
+| 條件 | 規則 |
+|---|---|
+| 成為候選 | 同時成立：(1) 原始碼確實具備該能力；(2) 該詞或其同義寫法在 Phase B 至少 2 個來源出現（第一頁 title／description、高星 repo description／topics、HN 標題） |
+| 競品常用、本專案不具備 | 不列候選，列入規劃「不執行項目」並附原因（過度宣稱會被選去回答專案答不了的查詢） |
+| 本專案獨有、競品未出現 | 只能列為次要關鍵字，並標「無搜尋面證據」 |
+| 多語言 | 每個語言以該語言 Phase B 的結果各自設計，禁止由另一語言翻譯 |
+| 詢問呈現 | 每個候選附證據：出現來源數、代表來源（repo 星數／HN points／第一頁排名） |
+| topics 候選 | 取自 Phase B 收集到的高星 repo topics，再依 R9 門檻篩選 |
 
 ### 已固定的預設（**不再詢問**）
 
@@ -117,11 +161,11 @@ python3 ~/.claude/skills/seo-optimize/scripts/analyze_seo.py {PROJECT_PATH}
 
 | # | Header | 問題 | 選項來源 |
 |---|---|---|---|
-| 1 | 關鍵字 | 想推廣的主要關鍵字（可複選 / 自填） | **由 Step 2 的原始碼理解產出 3–4 個候選**，使用者可改用 Other 自填 |
+| 1 | 關鍵字 | 想推廣的主要關鍵字（可複選 / 自填） | **依上方「候選設計」產出 3–4 個候選**，使用者可改用 Other 自填 |
 | 2 | 在地性 | 有無實體營業地點 | 有（觸發 LocalBusiness schema 與 GBP 建議）／純線上 |
 | 3 | AI 使用 | 是否允許 AI 訓練、AI 即時輸入、搜尋使用本站內容（R13；config 無 `ai_usage` 時才問） | 各類別允許／不允許／不表態 |
 
-**關鍵字候選必須來自實際讀過的程式碼**，不得從專案名硬湊。候選要是使用者會輸入搜尋框的詞，不是內部術語。
+候選要是使用者會輸入搜尋框的詞，不是內部術語；不得從專案名硬湊。
 
 ### config.json
 
@@ -133,9 +177,18 @@ python3 ~/.claude/skills/seo-optimize/scripts/analyze_seo.py {PROJECT_PATH}
   "locale_policy": "per-language-full",
   "engines": ["google", "google-ai", "chatgpt", "perplexity", "claude"],
   "has_physical_location": false,
-  "domain": "https://pardn.io/go-scheduler"
+  "domain": "https://pardn.io/go-scheduler",
+  "keyword_research": "2026-10-06",
+  "one_liner": {
+    "en": "A Go task scheduler with cron syntax, dependency chains, and fsnotify hot reload",
+    "zh": "Go 任務排程器，支援 cron 語法、任務相依鏈與 fsnotify 熱重載"
+  }
 }
 ```
+
+`one_liner` 由 Step 4 依 R9 設計，是 README 簡短描述（`/readme-generate` 順序 3）、GitHub repo description 與 topics 的單一來源。
+
+`keyword_research` 為關鍵字依 Phase B 競品研究設計的日期，對應 digest 檔名；要重新研究時帶 `--reset`。
 
 `locales` 依專案實際存在的語言版本填寫；`locale_policy` 與 `engines` 為固定值，不因專案而異。
 
@@ -145,7 +198,7 @@ python3 ~/.claude/skills/seo-optimize/scripts/analyze_seo.py {PROJECT_PATH}
 
 ## Step 3.5：補研究
 
-依 Step 3 的答案跑 [`scripts/research_protocol.md`](scripts/research_protocol.md) 的 Phase B，結果併入同一份 research digest。
+依 Step 3 的答案跑 [`scripts/research_protocol.md`](scripts/research_protocol.md) 的 Phase C，結果併入同一份 research digest。
 
 ---
 
@@ -169,7 +222,7 @@ python3 ~/.claude/skills/seo-optimize/scripts/analyze_seo.py {PROJECT_PATH}
 |---|---|
 | 檔案修改 | 逐項套用，每項對應規劃中的編號 |
 | `robots.txt` 封鎖規則、`noindex` 移除 | 規劃中已標為「需使用者決策」者，未獲答覆前不動 |
-| 遠端 repo metadata（`gh repo edit`） | **只列出指令，不執行**，交由使用者跑 |
+| 遠端 repo metadata（`gh repo edit`） | 依 R9 比對現況，不一致時以 `AskUserQuestion` 附完整指令詢問；同意才執行並以 `gh repo view` 驗證，否決則列入需人工後續 |
 | README | 由 `/readme-generate` 管理時只回報建議，不直接改寫結構 |
 | git | **不執行 `git commit` / `git push` / `git tag`** |
 
@@ -182,6 +235,7 @@ python3 ~/.claude/skills/seo-optimize/scripts/analyze_seo.py {PROJECT_PATH}
 產出 `.doc/seo-optimize/{yyyy-MM-dd_HH-mm}-applied.md`，並執行下列自我檢查：
 
 - [ ] Step 1 研究本次實際執行，digest 已落檔且含實抓的 Tier 1 來源
+- [ ] 本次設計的關鍵字每個都能指到 digest「競品研究」的詞彙彙整列（≥ 2 來源且專案具備該能力），config 已寫入 `keyword_research`
 - [ ] knowledge_anchors.md 與本次研究一致（不一致者已更新）
 - [ ] 每項套用的變更都能指到 `optimization_rules.md` 的規則編號
 - [ ] 每項變更都有實際檔案錨點，無虛構路徑
@@ -195,7 +249,7 @@ python3 ~/.claude/skills/seo-optimize/scripts/analyze_seo.py {PROJECT_PATH}
 - [ ] `csr_shell == true` 的頁面已列為 R11 Critical，未被其他內容層項目蓋過
 - [ ] 目標引擎含 ChatGPT 時，R12 的 Bing Webmaster Tools 驗證狀態已檢查
 - [ ] 驗證碼、IndexNow key 未被填造
-- [ ] 未執行 git 寫入指令、未執行 `gh repo edit`
+- [ ] 未執行 git 寫入指令；`gh repo edit` 只在使用者於 `AskUserQuestion` 同意後執行，且已以 `gh repo view` 確認生效
 - [ ] 已提醒使用者 `.doc/` 是否需加入 `.gitignore`
 - [ ] A-5 標準追蹤已實抓，A12 已更新驗證日期
 - [ ] 有 llms.txt 者：每頁有 Markdown 版與兩個探索連結、可見的 llms.txt／Markdown 連結；`.md`／`.txt` 回應帶 `charset=utf-8`
@@ -219,7 +273,7 @@ python3 ~/.claude/skills/seo-optimize/scripts/analyze_seo.py {PROJECT_PATH}
 
 | 階段 | 參考檔 | 用途 |
 |---|---|---|
-| Step 1 / 3.5 | [`scripts/research_protocol.md`](scripts/research_protocol.md) | 強制研究協定：查詢集、來源分級、衝突裁決、digest 格式 |
+| Step 1 / 2.5 / 3.5 | [`scripts/research_protocol.md`](scripts/research_protocol.md) | 強制研究協定：查詢集、來源分級、衝突裁決、digest 格式 |
 | Step 1 / 4 | [`scripts/knowledge_anchors.md`](scripts/knowledge_anchors.md) | 已驗證的一手立場快照，用於偵測變動與識破業界迷思；每次執行後更新 |
 | Step 4 / 5 | [`scripts/optimization_rules.md`](scripts/optimization_rules.md) | 規則 R1–R14、禁止動作、嚴重度定義 |
 | Step 4 / 6 | [`scripts/output_format.md`](scripts/output_format.md) | 規劃與執行結果的報告範本 |

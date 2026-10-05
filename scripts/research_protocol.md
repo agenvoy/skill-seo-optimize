@@ -102,14 +102,47 @@ Tier 3/4 的主張與 Tier 1 衝突時：
 
 ---
 
-## Phase B：targeted research（Step 3.5，取得關鍵字與地區後執行）
+## Phase B：競品研究（Step 2.5，設計關鍵字前執行）
 
-Phase A 結束時尚未知道關鍵字與地區，故必須補跑第二輪。
+輸入為 Step 2 產出的 seed 詞（每語言 2–4 個，描述使用者遇到的問題或要找的工具類型）。三個來源並行收集，**每個 seed × 每個語言**各跑一次：同一概念在中英文的競爭態勢與用詞常完全不同，共用一份結論會誤判。
+
+| # | 來源 | 取法 | 記錄欄位 |
+|---|---|---|---|
+| B-1 | 搜尋第一頁 | WebSearch `{seed}` | 前 10 名的 URL、頁面型態（清單／教學／工具頁／repo／論壇）、title、description 用詞 |
+| B-2 | GitHub 高星同類 | `gh api "search/repositories?q={seed}&sort=stars&order=desc&per_page=10" -q '.items[] \| {full_name,description,stargazers_count,topics,homepage,pushed_at}'`，逐一查詢間隔 2 秒 | full_name、星數、description、topics、homepage、最近 push |
+| B-3 | Hacker News 熱門文章 | `curl -s "https://hn.algolia.com/api/v1/search?query={seed}&tags=story&numericFilters=points%3E50&hitsPerPage=10"` | title、points、num_comments、created_at、url |
+
+| 邊界 | 規則 |
+|---|---|
+| topics 來源 | 用 `gh api search/repositories`；`gh search repos --json` 沒有 topics 欄位 |
+| 語意不符的結果 | 排除與本專案不同類的結果（例：seed 為終端機監控工具時，TLS 函式庫排除，SaaS 監控服務保留），並在 digest 註明排除原因 |
+| HN 無結果 | 記「無 points > 50 的 story」，不放寬門檻硬湊 |
+| ZH seed | B-2、B-3 以 ZH seed 常無結果；仍須跑一次並如實記錄，不以 EN 結果代替 ZH |
+
+產出寫入 digest 的「競品研究」段：
+
+```markdown
+## 競品研究（Phase B）
+
+### 第一頁（{seed}，{locale}）
+| 排名 | 頁面型態 | Title | Description 用詞 | URL |
+
+### GitHub 高星同類（{seed}）
+| Repo | ★ | Description | Topics |
+
+### Hacker News（{seed}）
+| Title | Points | Comments | 日期 | URL |
+
+### 詞彙彙整（{locale}）
+| 詞 | 出現來源數 | 代表來源 | 本專案具備 | 結論（主要／次要／不採用＋原因） |
+```
+
+---
+
+## Phase C：targeted research（Step 3.5，確定關鍵字與在地性後執行）
 
 | 條件 | 追加查詢 |
 |---|---|
-| 使用者提供關鍵字 | `{keyword}` 實際搜尋一次，記錄前 10 名的頁面型態（清單／教學／工具頁／論壇）與標題寫法 |
-| 專案有多語版本 | **每個語言各搜一次該語言的關鍵字**，分別記錄前 10 名型態——同一概念在中英文的競爭態勢與頁面型態常完全不同，共用一份結論會誤判 |
 | 有實體營業地點 | `Google Business Profile {YYYY} ranking factors NAP consistency` |
 | 目標引擎含 ChatGPT / Perplexity / Claude | `{keyword}` 直接問一次各引擎的公開介面不可行時，改查 `{topic} most cited sources {YYYY}` |
 | 專案為開發者工具／函式庫 | `llms.txt agent-facing documentation Anthropic OpenAI recommendation` — 判斷本專案是否落在 llms.txt 的**有效例外**（agent 取用的開發文件） |

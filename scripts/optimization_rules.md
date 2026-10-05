@@ -13,9 +13,10 @@
 | 情境 | 生效規則組 |
 |---|---|
 | `web_surfaces` 非空 | R1–R6（頁面層）＋ R7（爬蟲指令）＋ R10（實體一致性）＋ R11（初始 HTML）＋ R12（索引提交）＋ R13（AI 使用偏好宣告）＋ R14（Favicon） |
-| `code_type` ∈ {library, cli} | R8（套件登錄頁）＋ R9（GitHub / README）＋ R10 |
+| `code_type` ∈ {library, cli} | R8（套件登錄頁）＋ R10 |
+| `git remote` 為 `github.com` | R9（GitHub repo description／topics／homepage 與 README 簡短描述），不論 `code_type` 與有無 `web_surfaces` |
 | 兩者皆成立（例：Go library 內含 `wiki-worker/public` 文件站） | 全部；且兩邊的專案描述、關鍵字必須一致（R10） |
-| `web_surfaces` 為空且 `code_type` ∈ {library, cli} | **明確告知使用者本專案無 web SEO surface**，僅執行 R8–R10。禁止虛構頁面來套用 R1–R7 |
+| `web_surfaces` 為空且 `code_type` ∈ {library, cli} | **明確告知使用者本專案無 web SEO surface**，僅執行 R8、R10（GitHub repo 另執行 R9）。禁止虛構頁面來套用 R1–R7 |
 
 ---
 
@@ -198,16 +199,38 @@
 
 ## R9 — GitHub repo 與 README
 
-**判準**：repo description 為空／無 topics／README 首段未在前兩句說明專案用途。
+GitHub repo 頁是與網站並列的搜尋面（「X alternative」類查詢結果以 GitHub repo 為主），與網站一起依同一組定位優化，不另立方向。
+
+**判準**：`gh repo view {owner}/{repo} --json description,repositoryTopics,homepageUrl` 的實際值有任一不成立：
+
+| 欄位 | 通過條件 |
+|---|---|
+| description | 等於 config `one_liner.en`（保留既有類型前綴，如 `(module)`，`/update-pardn-page` 依此分類） |
+| topics | 涵蓋主要關鍵字對應的 GitHub topic（小寫連字號，如 `self-hosted`），GitHub 上限 20 個；每個 topic 的使用 repo 數 ≥ 1,000 |
+| homepage | 等於 config `domain`（有網站時） |
+| README 簡短描述 | `/readme-generate` 順序 3 的 blockquote，EN／ZH 分別等於 `one_liner.en`／`one_liner.zh` |
+
+**定位句 `one_liner`**：description、README 簡短描述與 topics 的單一來源，寫入 config。
+
+| 欄位 | 條件 |
+|---|---|
+| `one_liner.en` | `/readme-generate` 順序 3 固定格式 `A [tech] [what it is] with [f1], [f2], and [f3]`，≤ 20 個英文單字，句尾無句號；含 config 主要關鍵字至少一個；與網站首頁 description 同一定位 |
+| `one_liner.zh` | 同結構以中文撰寫（約 20–26 字），含 ZH 主要關鍵字至少一個，非逐字翻譯 |
+| topics | 由同一組主要／次要關鍵字推導；候選取自 research digest「競品研究」中高星同類 repo 的 topics |
+
+config 已有 `one_liner` 且仍符合條件 → 沿用；不符或缺 → 重新設計，於 Step 4 規劃中列出「現況 → 新值」由使用者確認。
 
 **動作**：
-- repo description：一句話，含主要關鍵字（透過 `gh repo edit --description`，**須使用者授權**）
-- topics：3–8 個（`gh repo edit --add-topic`）
-- README 首段：前兩句內出現專案名 + 用途 + 主要關鍵字
+- description／topics／homepage 不通過 → 組出單一 `gh repo edit` 指令（`--description`、`--add-topic`、`--homepage`；要移除已偏離定位的 topic 才加 `--remove-topic`），以 `AskUserQuestion` 附完整指令與「現況 → 新值」對照詢問是否更新
+- 使用者同意 → 直接執行，再跑一次 `gh repo view` 確認三個欄位已生效；否決 → 指令列入「需人工後續」
+- README 簡短描述不等於 `one_liner` → 只替換 `README.md` 與中文 README（`README.zh.md` 或 `doc/README.zh.md`）順序 3 的那一行 blockquote，其餘內容不動
 
 **邊界**：
-- README 已由 `/readme-generate` 管理時，**不直接改寫 README 結構**；只回報「順序 3 一句話描述建議調整為 X」，交由 readme-generate 重生成，避免兩個 skill 對同一檔案打架
-- `gh` 指令會改動遠端狀態 → 一律先列出指令請使用者確認，不自行執行
+- README 由 `/readme-generate` 管理時，只動順序 3 那一行；`/readme-generate` 順序 3 讀同一個 `one_liner`，兩個 skill 產出一致。結構與其他段落的建議只回報，交由 readme-generate 重生成
+- `gh repo edit` 改的是公開的遠端狀態：未經該次 `AskUserQuestion` 同意不得執行；同意只涵蓋問題中列出的那一條指令
+- 每個候選 topic 先以 `gh api "search/repositories?q=topic:{topic}&per_page=1" -q .total_count` 查使用 repo 數（逐一查詢間隔 2 秒，避開 search API 每分鐘 30 次限制）：< 1,000 不加；同義詞擇使用數最多的一個（`self-hosted` 40k 優於 `selfhosted` 2k）。詢問時預覽列出每個 topic 的使用數；既有 topic 低於門檻者列為移除候選一併詢問，不自行移除
+- topic 的社群語意要與專案相符，不只看字面：查該 topic 頁前幾名 repo 的性質，不同就不加
+- topics 不塞與專案無關的熱門詞；description 不堆疊同義詞（禁止動作：關鍵字堆砌）
 
 ---
 
