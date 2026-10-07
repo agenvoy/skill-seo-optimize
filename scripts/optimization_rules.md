@@ -120,7 +120,7 @@
 - **不得**以「提升 AI 引用」為理由加 schema——官方已否定該因果（A2）。理由寫「rich results 資格」或「實體理解」
 - 既有標註正確 → 不動
 
-**Organization 判準**：只為**實際存在**的組織產生 `Organization` 節點——公司登記名稱、有官網或 GitHub org 可對應者。地區、職能、口號等定位文字（例：「Taiwan · Infrastructure Engineering」）不是組織，放可見署名或 tagline，不得成為 `Organization` 並把作者掛為 `founder`。多語站各語言頁用該語言的正式名稱（中文頁「帕登國際有限公司」、英文頁「Pardn Co., LTD」），另一語言放 `alternateName`，`@id` 共用。作者網站已宣告 Organization 時沿用其 `@id`。（歷史事故：go-llm-router 2026-10-02 文件站把定位文字宣告為組織，作者網站上沒有對應節點。）
+**Organization 判準**：只為**實際存在**的組織產生 `Organization` 節點——公司登記名稱、有官網或 GitHub org 可對應者。地區、職能、口號等定位文字（例：「Taiwan · Infrastructure Engineering」）不是組織，放可見署名或 tagline，不得成為 `Organization` 並把作者掛為 `founder`。多語站各語言頁用該語言的正式名稱（中文頁「帕登國際有限公司」、英文頁「Pardn Co., Ltd」），另一語言放 `alternateName`，`@id` 共用。作者網站已宣告 Organization 時沿用其 `@id`。（歷史事故：go-llm-router 2026-10-02 文件站把定位文字宣告為組織，作者網站上沒有對應節點。）
 
 **日期（A10）**：`Article` / `BlogPosting` / `TechArticle` 須帶 `datePublished`，內容曾更新者帶 `dateModified`（`jsonld_date_modified == false` 即觸發），值取自 git 修改時間或**內容雜湊有變動時**的建置日期，並在頁面上可見顯示同一日期。有建置流程者由建置階段寫入：保存每頁內容雜湊與 `published`／`modified`，雜湊改變才更新 `modified`；sitemap `lastmod` 取同一值。**不得**直接用檔案 mtime 或每次建置的日期——重新產生檔案就會變動，等同內容未變卻更新日期。**禁止**內容未變動時更新日期。
 
